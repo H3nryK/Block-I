@@ -1,0 +1,5 @@
+[workspace]
+members = [
+    "src/block-i-backend"
+]
+resolver = "2"

@@ -11,7 +11,6 @@ const App = () => {
   return (
     <Router>
       <div className="app-container">
-        <Navbar />
         <Routes>
           <Route exact path="/" element={<LoginPage />} />
           <Route path="/dashboard" element={<Dashboard />} />

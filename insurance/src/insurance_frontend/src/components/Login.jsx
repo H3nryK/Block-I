@@ -1,6 +1,5 @@
 import React from 'react';
 import { Actor, HttpAgent } from '@dfinity/agent';
-import { AuthClient } from '@dfinity/auth-client';
 import { ethers } from 'ethers';
 import { idlFactory } from '../../../declarations/insurance_frontend'; // Import your idlFactory here
 import { useNavigate } from 'react-router-dom';
@@ -81,7 +80,7 @@ const LoginPage = () => {
 
     if (authClient) {
         try {
-            let identityProvider = process.env.II_URL;
+            let identityProvider = 'https://identity.ic0.app';
             authClient.login({
                 identityProvider,
                 onSuccess: async () => {

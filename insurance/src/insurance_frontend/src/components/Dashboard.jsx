@@ -4,22 +4,48 @@ import { Link } from 'react-router-dom';
 import { FaUpload, FaFileAlt, FaCheckCircle, FaTimesCircle, FaSignOutAlt } from 'react-icons/fa';
 import { useDropzone } from 'react-dropzone';
 
+import { insurance_backend } from '../../../declarations/insurance_backend';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory } from '../../../declarations/insurance_backend';
+import { useAuth } from './AuthContext';
+
 const Dashboard = ({ actor, onLogout }) => {
   const [documents, setDocuments] = useState([]);
   const [underwritingResult, setUnderwritingResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState({});
   const [errors, setErrors] = useState({});
+  const [docMap, setDocMap] = useState(new Map());
+  const authClient = useAuth();
 
   useEffect(() => {
+    getAuthenticatedActor();
     fetchDocuments();
     fetchUnderwritingResult();
-  }, []);
+  }, [authClient]);
+
+  const getAuthenticatedActor = () => {
+    try {
+        const agent = new HttpAgent({ identity });
+        return Actor.createActor(idlFactory, { agent, canisterId });
+    } catch (error) {
+        console.error("Failed to create actor:", error);
+        throw error;
+    }
+  }
 
   const fetchDocuments = async () => {
     try {
-      const docs = await actor.getDocuments();
-      setDocuments(docs);
+      const actor = getAuthenticatedActor();
+      console.log("actor", actor);
+      
+      const userId = authClient.underwritingResult.userId;
+      const fetchDocs = await insurance_backend.getDocuments(userId);
+      setDocuments(fetchDocs);
+
+      const fileMap = new Map(fetchDocs.map(doc => [doc.id, doc.docData]));
+      setDocMap(docMap);
+
     } catch (error) {
       console.error('Error fetching documents:', error);
     }

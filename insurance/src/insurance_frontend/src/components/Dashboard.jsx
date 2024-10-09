@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { FaUpload, FaFileAlt, FaCheckCircle, FaTimesCircle, FaUser, FaWallet } from 'react-icons/fa';
+import { FaUpload, FaFileAlt, FaCheckCircle, FaTimesCircle, FaSignOutAlt } from 'react-icons/fa';
 import { useDropzone } from 'react-dropzone';
 
 const Dashboard = ({ actor, onLogout }) => {
@@ -36,11 +36,10 @@ const Dashboard = ({ actor, onLogout }) => {
     }
   };
 
-  const onDrop = useCallback((acceptedFiles, fileRejections, event) => {
-    const fileType = event.target.name;
+  const onDrop = useCallback((acceptedFiles, { name }) => {
     if (acceptedFiles.length > 0) {
-      setUploadedFiles(prevFiles => ({ ...prevFiles, [fileType]: acceptedFiles[0] }));
-      setErrors(prevErrors => ({ ...prevErrors, [fileType]: null }));
+      setUploadedFiles(prev => ({ ...prev, [name]: acceptedFiles[0] }));
+      setErrors(prev => ({ ...prev, [name]: null }));
     }
   }, []);
 
@@ -48,26 +47,24 @@ const Dashboard = ({ actor, onLogout }) => {
     setIsLoading(true);
     const file = uploadedFiles[docType];
     if (!file) {
-      setErrors(prevErrors => ({ ...prevErrors, [docType]: 'File is required' }));
+      setErrors(prev => ({ ...prev, [docType]: 'File is required' }));
       setIsLoading(false);
       return;
     }
 
     const reader = new FileReader();
-
     reader.onloadend = async () => {
       const content = new Uint8Array(reader.result);
       try {
         await actor.submitDocument({ [docType]: null }, content);
         await fetchDocuments();
-        setIsLoading(false);
       } catch (error) {
         console.error('Error uploading document:', error);
-        setErrors(prevErrors => ({ ...prevErrors, [docType]: 'Error uploading document' }));
+        setErrors(prev => ({ ...prev, [docType]: 'Error uploading document' }));
+      } finally {
         setIsLoading(false);
       }
     };
-
     reader.readAsArrayBuffer(file);
   };
 
@@ -76,16 +73,16 @@ const Dashboard = ({ actor, onLogout }) => {
     try {
       await actor.processUnderwriting();
       await fetchUnderwritingResult();
-      setIsLoading(false);
     } catch (error) {
       console.error('Error processing underwriting:', error);
+    } finally {
       setIsLoading(false);
     }
   };
 
   const Dropzone = ({ docType }) => {
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
-      onDrop: (acceptedFiles) => onDrop(acceptedFiles, [], { target: { name: docType } }),
+      onDrop: (acceptedFiles) => onDrop(acceptedFiles, { name: docType }),
     });
 
     return (
@@ -103,7 +100,7 @@ const Dashboard = ({ actor, onLogout }) => {
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setUploadedFiles((prevFiles) => ({ ...prevFiles, [docType]: null }));
+                setUploadedFiles((prev) => ({ ...prev, [docType]: null }));
               }}
               className="ml-2 text-red-500 hover:text-red-700 transition duration-300"
             >
@@ -113,9 +110,7 @@ const Dashboard = ({ actor, onLogout }) => {
         ) : (
           <div className="text-center">
             <FaUpload className="mx-auto text-3xl text-gray-400 mb-2" />
-            <p className="text-sm text-gray-600">
-              Drag &amp; drop or click to select a file
-            </p>
+            <p className="text-sm text-gray-600">Drag &amp; drop or click to select a file</p>
           </div>
         )}
       </div>
@@ -123,54 +118,44 @@ const Dashboard = ({ actor, onLogout }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-md">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-200">
+      <nav className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 shadow-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <img className="h-8 w-auto" src="/logo.png" alt="Logo" />
-              </div>
+            <div className="flex items-center">
+              <img className="h-8 w-auto" src="/icon.webp" alt="Logo" />
               <div className="ml-6 flex space-x-8">
-                <Link to="/dashboard" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-blue-500 text-sm font-medium">
+                <Link to="/dashboard" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">
                   Dashboard
                 </Link>
-                <Link to="/profile" className="text-gray-500 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
+                <Link to="/profile" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">
                   Profile
                 </Link>
               </div>
             </div>
             <div className="flex items-center">
-              <button onClick={onLogout} className="ml-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-300">
-                Logout
+              <button onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md">
+                <FaSignOutAlt className="inline-block mr-2" /> Logout
               </button>
             </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="bg-white rounded-lg shadow-md p-6 mb-8"
-        >
-          <h2 className="text-2xl font-semibold mb-4">Upload Documents</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Document Upload Section */}
+        <motion.div className="bg-white rounded-lg shadow-lg p-8 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <h2 className="text-3xl font-semibold mb-6">Upload Documents</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {['FinancialAudit', 'ScannedForm', 'OperationLicense'].map((docType) => (
               <div key={docType} className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
-                  {docType.replace(/([A-Z])/g, ' $1').trim()}
-                </label>
+                <label className="block text-md font-medium text-gray-700">{docType.replace(/([A-Z])/g, ' $1').trim()}</label>
                 <Dropzone docType={docType} />
-                {errors[docType] && (
-                  <p className="text-red-500 text-xs">{errors[docType]}</p>
-                )}
+                {errors[docType] && <p className="text-red-500 text-xs mt-1">{errors[docType]}</p>}
                 <button
                   onClick={() => handleFileUpload(docType)}
                   disabled={isLoading || !uploadedFiles[docType]}
-                  className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300 disabled:opacity-50"
+                  className="w-full mt-3 bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition"
                 >
                   Upload {docType.replace(/([A-Z])/g, ' $1').trim()}
                 </button>
@@ -179,64 +164,39 @@ const Dashboard = ({ actor, onLogout }) => {
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="bg-white rounded-lg shadow-md p-6 mb-8"
-        >
-          <h2 className="text-2xl font-semibold mb-4">Uploaded Documents</h2>
-          <ul className="space-y-2">
+        {/* Uploaded Documents Section */}
+        <motion.div className="bg-white rounded-lg shadow-lg p-8 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <h2 className="text-3xl font-semibold mb-6">Uploaded Documents</h2>
+          <ul className="space-y-4">
             {documents.map((doc, index) => (
-              <motion.li
-                key={doc.id}
-                initial={{ opacity: 0, x: -50 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                className="flex items-center text-gray-700"
-              >
-                <FaFileAlt className="mr-2 text-blue-500" />
+              <motion.li key={doc.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center text-gray-700">
+                <FaFileAlt className="mr-3 text-blue-500" />
                 <span>{doc.docType} - {new Date(doc.timestamp / 1000000).toLocaleString()}</span>
               </motion.li>
             ))}
           </ul>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.4 }}
-          className="bg-white rounded-lg shadow-md p-6"
-        >
-          <h2 className="text-2xl font-semibold mb-4">Underwriting Result</h2>
+        {/* Underwriting Result Section */}
+        <motion.div className="bg-white rounded-lg shadow-lg p-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
+          <h2 className="text-3xl font-semibold mb-6">Underwriting Result</h2>
           {underwritingResult ? (
-            <div className="space-y-2">
-              <p className="flex items-center">
-                Status:{' '}
-                {underwritingResult.status === 'Approved' ? (
-                  <span className="ml-2 flex items-center text-green-500">
-                    <FaCheckCircle className="mr-1" /> Approved
-                  </span>
-                ) : (
-                  <span className="ml-2 flex items-center text-red-500">
-                    <FaTimesCircle className="mr-1" /> Denied
-                  </span>
-                )}
-              </p>
-              {underwritingResult.quotation && (
-                <p>Quotation: ${underwritingResult.quotation.toFixed(2)}</p>
-              )}
-              {underwritingResult.reason && <p>Reason: {underwritingResult.reason}</p>}
+            <div className="flex items-center text-green-500">
+              <FaCheckCircle className="mr-3" />
+              <p className="text-lg">{underwritingResult.message}</p>
             </div>
           ) : (
-            <p className="text-gray-600">No underwriting result available</p>
+            <div className="flex items-center text-red-500">
+              <FaTimesCircle className="mr-3" />
+              <p className="text-lg">No result available.</p>
+            </div>
           )}
           <button
             onClick={processUnderwriting}
             disabled={isLoading}
-            className="mt-4 bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded transition duration-300 disabled:opacity-50"
+            className="mt-6 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition"
           >
-            {isLoading ? 'Processing...' : 'Process Underwriting'}
+            Process Underwriting
           </button>
         </motion.div>
       </div>

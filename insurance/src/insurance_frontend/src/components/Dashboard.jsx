@@ -3,82 +3,127 @@ import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { FaUpload, FaFileAlt, FaCheckCircle, FaTimesCircle, FaSignOutAlt } from 'react-icons/fa';
 import { useDropzone } from 'react-dropzone';
+import { insurance_backend } from '../../../declarations/insurance_backend';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory } from '../../../declarations/insurance_backend';
+import { useAuth } from './AuthContext';
 
 const Dashboard = ({ actor, onLogout }) => {
+  const [authenticatedActor, setAuthenticatedActor] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [docMap, setDocMap] = useState(new Map());
   const [underwritingResult, setUnderwritingResult] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [uploadedFiles, setUploadedFiles] = useState({});
-  const [errors, setErrors] = useState({});
+  const [errors, setErrors] = useState([]);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  
+  const { isAuthenticated, userId } = useAuth(); // Assuming userId comes from auth
 
-  useEffect(() => {
-    fetchDocuments();
-    fetchUnderwritingResult();
-  }, []);
+  // Initialize the actor
+  const createActor = async () => {
+    const agent = new HttpAgent({ host: "https://ic0.app" });
 
-  const fetchDocuments = async () => {
+    // For local development, fetch root key
+    if (process.env.NODE_ENV === 'development') {
+      agent.fetchRootKey();
+    }
+
+    // Create the actor with the insurance_backend canister ID
+    const actor = Actor.createActor(idlFactory, {
+      agent,
+      canisterId: process.env.REACT_APP_INSURANCE_BACKEND_CANISTER_ID, // Use environment variable
+    });
+
+    return actor;
+  };
+
+  // Authenticate and create the actor
+  const getAuthenticatedActor = async () => {
     try {
-      const docs = await actor.getDocuments();
-      setDocuments(docs);
+      const actor = await createActor();
+      if (actor) {
+        setAuthenticatedActor(actor);
+        return actor; // Return actor for immediate use
+      } else {
+        console.error("Actor creation failed.");
+      }
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      console.error("Error creating actor:", error);
     }
   };
 
-  const fetchUnderwritingResult = async () => {
+  // Fetch documents
+  const fetchDocuments = async () => {
+    if (!authenticatedActor) return;
     try {
-      const result = await actor.getUnderwritingResult();
+      const fetchedDocs = await authenticatedActor.getDocuments(userId);
+      setDocuments(fetchedDocs);
+
+      // Create a map of document IDs to document data
+      const fileMap = new Map(fetchedDocs.map(doc => [doc.id, doc.docData]));
+      setDocMap(fileMap);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+    }
+  };
+
+  // Fetch underwriting result
+  const fetchUnderwritingResult = async () => {
+    if (!authenticatedActor) return;
+    try {
+      const result = await authenticatedActor.getUnderwritingResult();
       if (result.ok) {
         setUnderwritingResult(result.ok);
       }
     } catch (error) {
-      console.error('Error fetching underwriting result:', error);
+      console.error("Error fetching underwriting result:", error);
     }
   };
 
-  const onDrop = useCallback((acceptedFiles, { name }) => {
-    if (acceptedFiles.length > 0) {
-      setUploadedFiles(prev => ({ ...prev, [name]: acceptedFiles[0] }));
-      setErrors(prev => ({ ...prev, [name]: null }));
-    }
-  }, []);
-
-  const handleFileUpload = async (docType) => {
-    setIsLoading(true);
-    const file = uploadedFiles[docType];
-    if (!file) {
-      setErrors(prev => ({ ...prev, [docType]: 'File is required' }));
-      setIsLoading(false);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const content = new Uint8Array(reader.result);
-      try {
-        await actor.submitDocument({ [docType]: null }, content);
-        await fetchDocuments();
-      } catch (error) {
-        console.error('Error uploading document:', error);
-        setErrors(prev => ({ ...prev, [docType]: 'Error uploading document' }));
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
+  // Process underwriting
   const processUnderwriting = async () => {
+    if (!authenticatedActor) return;
     setIsLoading(true);
     try {
-      await actor.processUnderwriting();
+      await authenticatedActor.processUnderwriting();
       await fetchUnderwritingResult();
     } catch (error) {
-      console.error('Error processing underwriting:', error);
+      console.error("Error processing underwriting:", error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Trigger actor setup on mount and after authentication
+  useEffect(() => {
+    if (isAuthenticated) {
+      getAuthenticatedActor();
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (authenticatedActor) {
+      fetchDocuments();
+    }
+  }, [authenticatedActor]);
+
+  useEffect(() => {
+    // Simulate fetching data or handling errors
+    const fetchErrors = async () => {
+      try {
+        // Your logic to fetch data
+        // Simulate an error response
+        const responseErrors = [
+          { message: "Error 1: Something went wrong" },
+          { message: "Error 2: Unable to fetch data" }
+        ];
+        setErrors(responseErrors); // Set errors from the response
+      } catch (e) {
+        setErrors([{ message: "An unexpected error occurred." }]);
+      }
+    };
+    fetchErrors();
+  }, []);
 
   const Dropzone = ({ docType }) => {
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -88,9 +133,7 @@ const Dashboard = ({ actor, onLogout }) => {
     return (
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-4 cursor-pointer transition duration-300 ${
-          isDragActive ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:border-blue-300'
-        }`}
+        className={`border-2 border-dashed rounded-lg p-4 cursor-pointer transition duration-300 ${isDragActive ? 'bg-blue-50 border-blue-300' : 'border-gray-300 hover:border-blue-300'}`}
       >
         <input {...getInputProps({ name: docType })} />
         {uploadedFiles[docType] ? (
@@ -125,12 +168,8 @@ const Dashboard = ({ actor, onLogout }) => {
             <div className="flex items-center">
               <img className="h-8 w-auto" src="/icon.webp" alt="Logo" />
               <div className="ml-6 flex space-x-8">
-                <Link to="/dashboard" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link to="/profile" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">
-                  Profile
-                </Link>
+                <Link to="/dashboard" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">Dashboard</Link>
+                <Link to="/profile" className="text-white hover:bg-purple-700 px-3 py-2 rounded-md text-sm font-medium">Profile</Link>
               </div>
             </div>
             <div className="flex items-center">
@@ -151,7 +190,7 @@ const Dashboard = ({ actor, onLogout }) => {
               <div key={docType} className="space-y-2">
                 <label className="block text-md font-medium text-gray-700">{docType.replace(/([A-Z])/g, ' $1').trim()}</label>
                 <Dropzone docType={docType} />
-                {errors[docType] && <p className="text-red-500 text-xs mt-1">{errors[docType]}</p>}
+                {errors && errors.length > 0 && errors.map((error, index) => ( <p key={index} className="text-red-500 text-xs mt-1">{error.message}</p>))}
                 <button
                   onClick={() => handleFileUpload(docType)}
                   disabled={isLoading || !uploadedFiles[docType]}
@@ -168,10 +207,10 @@ const Dashboard = ({ actor, onLogout }) => {
         <motion.div className="bg-white rounded-lg shadow-lg p-8 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
           <h2 className="text-3xl font-semibold mb-6">Uploaded Documents</h2>
           <ul className="space-y-4">
-            {documents.map((doc, index) => (
+            {documents.map((doc) => (
               <motion.li key={doc.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center text-gray-700">
                 <FaFileAlt className="mr-3 text-blue-500" />
-                <span>{doc.docType} - {new Date(doc.timestamp / 1000000).toLocaleString()}</span>
+                <span>{doc.name} - {new Date(doc.timestamp / 1000000).toLocaleString()}</span>
               </motion.li>
             ))}
           </ul>
@@ -181,22 +220,20 @@ const Dashboard = ({ actor, onLogout }) => {
         <motion.div className="bg-white rounded-lg shadow-lg p-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
           <h2 className="text-3xl font-semibold mb-6">Underwriting Result</h2>
           {underwritingResult ? (
-            <div className="flex items-center text-green-500">
-              <FaCheckCircle className="mr-3" />
-              <p className="text-lg">{underwritingResult.message}</p>
+            <div className="text-lg text-gray-800">
+              <p>Status: {underwritingResult.status}</p>
+              <p>Quotation: ${underwritingResult.quotation}</p>
+              <p>Comments: {underwritingResult.comments || 'N/A'}</p>
             </div>
           ) : (
-            <div className="flex items-center text-red-500">
-              <FaTimesCircle className="mr-3" />
-              <p className="text-lg">No result available.</p>
-            </div>
+            <p className="text-gray-500">No underwriting result available.</p>
           )}
           <button
             onClick={processUnderwriting}
             disabled={isLoading}
-            className="mt-6 w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition"
+            className="mt-4 bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition"
           >
-            Process Underwriting
+            {isLoading ? 'Processing...' : 'Process Underwriting'}
           </button>
         </motion.div>
       </div>

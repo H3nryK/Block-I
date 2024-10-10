@@ -7,54 +7,64 @@ import Preloader from './Preloader';
 import { insurance_backend } from '../../../declarations/insurance_backend';
 
 const Profile = ({ onLogout }) => {
-  const [isLoading, setIsLoading] = useState(false);
-  const [userInfo, setUserInfo] = useState({});
-  const [connectedWallets, setConnectedWallets] = useState([]);
-  const [premiumTransactions, setPremiumTransactions] = useState([]);
-
-  useEffect(() => {
-    fetchUserInfo();
-    fetchPremiumTransactions();
-  }, []);
-
-  const fetchUserInfo = async () => {
-    setIsLoading(true);
-    try {
-      const info = await insurance_backend.getUserInfo();
-      setUserInfo(info);
-    } catch (error) {
-      console.error('Error fetching user info:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchPremiumTransactions = async () => {
-    try {
-      const transactions = await insurance_backend.getPremiumTransactions();
-      setPremiumTransactions(transactions);
-    } catch (error) {
-      console.error('Error fetching premium transactions:', error);
-    }
-  };
-
-  const connectWallet = async (walletType) => {
-    setIsLoading(true);
-    try {
-      if (walletType === 'Plug') {
-        // Implement Plug wallet connection logic here
-      } else if (walletType === 'MetaMask') {
-        // Implement MetaMask connection logic here
+    const [isLoading, setIsLoading] = useState(false);
+    const [principal, setPrincipal] = useState('');
+    const [connectedWallets, setConnectedWallets] = useState([]);
+    const [premiumTransactions, setPremiumTransactions] = useState([]);
+  
+    useEffect(() => {
+      fetchUserInfo();
+      fetchPremiumTransactions();
+    }, []);
+  
+    const fetchUserInfo = async () => {
+      setIsLoading(true);
+      try {
+        const info = await insurance_backend.whoami.whoami();
+        setPrincipal(info);
+      } catch (error) {
+        console.error('Error fetching user info:', error);
+      } finally {
+        setIsLoading(false);
       }
-      // For demonstration, we'll just add a mock wallet
-      const newWallet = { type: walletType, address: `0x${Math.random().toString(16).substr(2, 40)}` };
-      setConnectedWallets([...connectedWallets, newWallet]);
-    } catch (error) {
-      console.error(`Error connecting ${walletType} wallet:`, error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+  
+    const fetchPremiumTransactions = async () => {
+      try {
+        const transactions = await insurance_backend.getPremiumTransactions();
+        setPremiumTransactions(transactions);
+      } catch (error) {
+        console.error('Error fetching premium transactions:', error);
+      }
+    };
+  
+    const connectWallet = async (walletType) => {
+      setIsLoading(true);
+      try {
+        if (walletType === 'Plug') {
+          if (!window.ic?.plug) {
+            window.open('https://plugwallet.ooo/', '_blank');
+            throw new Error('Plug wallet not installed');
+          }
+          await window.ic.plug.requestConnect();
+          const principalId = await window.ic.plug.agent.getPrincipal();
+          setConnectedWallets(wallets => [...wallets, { type: 'Plug', address: principalId.toString() }]);
+        } else if (walletType === 'MetaMask') {
+          if (!window.ethereum) {
+            window.open('https://metamask.io/', '_blank');
+            throw new Error('MetaMask not installed');
+          }
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          setConnectedWallets(wallets => [...wallets, { type: 'MetaMask', address: accounts[0] }]);
+        }
+        alert(`${walletType} wallet connected successfully!`);
+      } catch (error) {
+        console.error(`Error connecting ${walletType} wallet:`, error);
+        alert(`Failed to connect ${walletType} wallet. ${error.message}`);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
@@ -76,15 +86,7 @@ const Profile = ({ onLogout }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <h4 className="text-lg font-semibold mb-2">Personal Information</h4>
-                <p><strong>Name:</strong> {userInfo.name}</p>
-                <p><strong>Email:</strong> {userInfo.email}</p>
-                <p><strong>Account Type:</strong> {userInfo.accountType}</p>
-              </div>
-              <div>
-                <h4 className="text-lg font-semibold mb-2">Account Statistics</h4>
-                <p><strong>Total Policies:</strong> {userInfo.totalPolicies}</p>
-                <p><strong>Active Policies:</strong> {userInfo.activePolicies}</p>
-                <p><strong>Total Claims:</strong> {userInfo.totalClaims}</p>
+                <p><strong>Principal ID:</strong> {principal}</p>
               </div>
             </div>
           </div>
@@ -123,13 +125,13 @@ const Profile = ({ onLogout }) => {
             <div className="grid grid-cols-1gap-4 sm:grid-cols-2">
               <button
                 onClick={() => connectWallet('Plug')}
-                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                className="w-full flex justify-center m-4 items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
               >
                 <FaPlug className="mr-2" /> Connect Plug Wallet
               </button>
               <button
                 onClick={() => connectWallet('MetaMask')}
-                className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400"
+                className="w-full flex justify-center m-4 items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-500 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-400"
               >
                 <FaEthereum className="mr-2" /> Connect MetaMask
               </button>

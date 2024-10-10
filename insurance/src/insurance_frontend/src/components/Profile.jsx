@@ -1,73 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
-import { FaUser, FaWallet, FaPlug, FaEthereum, FaCheckCircle, FaTimesCircle } from 'react-icons/fa';
+import { FaUser, FaWallet, FaPlug, FaEthereum, FaCheckCircle } from 'react-icons/fa';
+import Navbar from './Navbar';
+import Footer from './Footer';
+import Preloader from './Preloader';
+import { insurance_backend } from '../../../declarations/insurance_backend';
 
-const Profile = ({ actor, onLogout }) => {
-  const [connectedWallets, setConnectedWallets] = useState([]);
+const Profile = ({ onLogout }) => {
+  const [isLoading, setIsLoading] = useState(false);
   const [userInfo, setUserInfo] = useState({});
-  const [rejectedQuotations, setRejectedQuotations] = useState([]);
-  const [givenQuotations, setGivenQuotations] = useState([]);
+  const [connectedWallets, setConnectedWallets] = useState([]);
+  const [premiumTransactions, setPremiumTransactions] = useState([]);
 
   useEffect(() => {
     fetchUserInfo();
-    fetchQuotations();
+    fetchPremiumTransactions();
   }, []);
 
   const fetchUserInfo = async () => {
+    setIsLoading(true);
     try {
-      const info = await actor.getUserInfo();
+      const info = await insurance_backend.getUserInfo();
       setUserInfo(info);
     } catch (error) {
       console.error('Error fetching user info:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const fetchQuotations = async () => {
+  const fetchPremiumTransactions = async () => {
     try {
-      const rejected = await actor.getRejectedQuotations();
-      const given = await actor.getGivenQuotations();
-      setRejectedQuotations(rejected);
-      setGivenQuotations(given);
+      const transactions = await insurance_backend.getPremiumTransactions();
+      setPremiumTransactions(transactions);
     } catch (error) {
-      console.error('Error fetching quotations:', error);
+      console.error('Error fetching premium transactions:', error);
     }
   };
 
   const connectWallet = async (walletType) => {
-    // This is a placeholder function. You'll need to implement the actual wallet connection logic.
-    const newWallet = { type: walletType, address: `0x${Math.random().toString(16).substr(2, 40)}` };
-    setConnectedWallets([...connectedWallets, newWallet]);
+    setIsLoading(true);
+    try {
+      if (walletType === 'Plug') {
+        // Implement Plug wallet connection logic here
+      } else if (walletType === 'MetaMask') {
+        // Implement MetaMask connection logic here
+      }
+      // For demonstration, we'll just add a mock wallet
+      const newWallet = { type: walletType, address: `0x${Math.random().toString(16).substr(2, 40)}` };
+      setConnectedWallets([...connectedWallets, newWallet]);
+    } catch (error) {
+      console.error(`Error connecting ${walletType} wallet:`, error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex">
-              <div className="flex-shrink-0 flex items-center">
-                <img className="h-8 w-auto" src="/icon.webp" alt="Logo" />
-              </div>
-              <div className="ml-6 flex space-x-8">
-                <Link to="/dashboard" className="text-gray-500 hover:text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium">
-                  Dashboard
-                </Link>
-                <Link to="/profile" className="text-gray-900 inline-flex items-center px-1 pt-1 border-b-2 border-blue-500 text-sm font-medium">
-                  Profile
-                </Link>
-              </div>
-            </div>
-            <div className="flex items-center">
-              <button onClick={onLogout} className="ml-4 bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded transition duration-300">
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen flex flex-col bg-gray-100">
+      <Navbar onLogout={onLogout} />
+      {isLoading && <Preloader />}
+      <main className="flex-grow container mx-auto px-4 py-8">
         <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
@@ -89,9 +82,9 @@ const Profile = ({ actor, onLogout }) => {
               </div>
               <div>
                 <h4 className="text-lg font-semibold mb-2">Account Statistics</h4>
-                <p><strong>Total Quotations:</strong> {givenQuotations.length + rejectedQuotations.length}</p>
-                <p><strong>Approved Quotations:</strong> {givenQuotations.length}</p>
-                <p><strong>Rejected Quotations:</strong> {rejectedQuotations.length}</p>
+                <p><strong>Total Policies:</strong> {userInfo.totalPolicies}</p>
+                <p><strong>Active Policies:</strong> {userInfo.activePolicies}</p>
+                <p><strong>Total Claims:</strong> {userInfo.totalClaims}</p>
               </div>
             </div>
           </div>
@@ -127,7 +120,7 @@ const Profile = ({ actor, onLogout }) => {
             ) : (
               <p className="text-gray-500 mb-4">No wallets connected yet.</p>
             )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1gap-4 sm:grid-cols-2">
               <button
                 onClick={() => connectWallet('Plug')}
                 className="w-full flex justify-center items-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
@@ -148,50 +141,17 @@ const Profile = ({ actor, onLogout }) => {
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="bg-white shadow-lg rounded-lg overflow-hidden mb-8"
-        >
-          <div className="bg-blue-600 px-4 py-5 sm:px-6">
-            <h3 className="text-lg leading-6 font-medium text-white flex items-center">
-              <FaCheckCircle className="mr-2" /> Given Quotations
-            </h3>
-          </div>
-          <div className="px-4 py-5 sm:p-6">
-            {givenQuotations.length > 0 ? (
-              <ul className="space-y-3">
-                {givenQuotations.map((quote, index) => (
-                  <motion.li
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.3, delay: index * 0.1 }}
-                    className="flex items-center justify-between bg-gray-50 p-3 rounded-md"
-                  >
-                    <span className="font-medium">Quotation #{quote.id}</span>
-                    <span className="text-sm text-gray-500">${quote.amount}</span>
-                  </motion.li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-500">No given quotations yet.</p>
-            )}
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
           className="bg-white shadow-lg rounded-lg overflow-hidden"
         >
           <div className="bg-blue-600 px-4 py-5 sm:px-6">
             <h3 className="text-lg leading-6 font-medium text-white flex items-center">
-              <FaTimesCircle className="mr-2" /> Rejected Quotations
+              <FaCheckCircle className="mr-2" /> Premium Transactions
             </h3>
           </div>
           <div className="px-4 py-5 sm:p-6">
-            {rejectedQuotations.length > 0 ? (
+            {premiumTransactions.length > 0 ? (
               <ul className="space-y-3">
-                {rejectedQuotations.map((quote, index) => (
+                {premiumTransactions.map((transaction, index) => (
                   <motion.li
                     key={index}
                     initial={{ opacity: 0, x: -20 }}
@@ -199,17 +159,18 @@ const Profile = ({ actor, onLogout }) => {
                     transition={{ duration: 0.3, delay: index * 0.1 }}
                     className="flex items-center justify-between bg-gray-50 p-3 rounded-md"
                   >
-                    <span className="font-medium">Quotation #{quote.id}</span>
-                    <span className="text-sm text-red-500">Rejected: {quote.reason}</span>
+                    <span className="font-medium">Transaction #{transaction.id}</span>
+                    <span className="text-sm text-gray-500">${transaction.amount} - {transaction.date}</span>
                   </motion.li>
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-500">No rejected quotations.</p>
+              <p className="text-gray-500">No premium transactions yet.</p>
             )}
           </div>
         </motion.div>
-      </div>
+      </main>
+      <Footer />
     </div>
   );
 };

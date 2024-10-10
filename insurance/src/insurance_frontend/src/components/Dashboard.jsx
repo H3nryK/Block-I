@@ -10,34 +10,131 @@ const Dashboard = ({ onLogout }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [financialAudit, setFinancialAudit] = useState(null);
   const [filledForm, setFilledForm] = useState(null);
+  const [operationLicense, setOperationLicense] = useState(null);
   const [underwritingResult, setUnderwritingResult] = useState(null);
+  const [documents, setDocuments] = useState([]);
+  const [error, setError] = useState(null);
 
-  const handleFileUpload = (event, setFile) => {
-    const file = event.target.files[0];
-    setFile(file);
+  useEffect(() => {
+    createAccountIfNeeded();
+    fetchDocuments();
+  }, []);
+
+  const createAccountIfNeeded = async () => {
+    try {
+      const result = await insurance_backend.createAccount();
+      if (result.err) {
+        console.log("Account already exists or error:", result.err);
+      } else {
+        console.log("Account created successfully");
+      }
+    } catch (error) {
+      console.error("Error creating account:", error);
+    }
+  };
+
+  const fetchDocuments = async () => {
+    try {
+      console.log("Attempting to fetch documents...");
+      const docs = await insurance_backend.getDocuments();
+      console.log("Received response:", docs);
+      setDocuments(docs);
+    } catch (error) {
+      console.error("Error fetching documents:", error);
+      if (error instanceof Error) {
+        console.error("Error name:", error.name);
+        console.error("Error message:", error.message);
+        console.error("Error stack:", error.stack);
+      }
+      setError("Failed to fetch documents. Please check the console for more details.");
+    }
+  };
+
+  const submitDocument = async (file, docType) => {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const arrayBuffer = reader.result;
+      try {
+        const result = await insurance_backend.submitDocument(docType, Array.from(new Uint8Array(arrayBuffer)));
+        console.log(`Document submitted:`, result);
+        if ('ok' in result) {
+          console.log(`Document submitted with ID: ${result.ok}`);
+          fetchDocuments(); // Refresh the document list
+        } else {
+          console.error(`Error submitting document: ${result.err}`);
+          setError(`Failed to submit document: ${result.err}`);
+        }
+      } catch (error) {
+        console.error("Error submitting document:", error);
+        setError("Failed to submit document. Please try again.");
+      }
+    };
+    reader.readAsArrayBuffer(file);
   };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
-      // Here you would typically upload the files to your backend
-      // For this example, we'll simulate a backend call
-      const result = await insurance_backend.processQuotation(financialAudit, filledForm);
-      setUnderwritingResult(result);
+      if (financialAudit) await submitDocument(financialAudit.file, { FinancialAudit: null });
+      if (filledForm) await submitDocument(filledForm.file, { ScannedForm: null });
+      if (operationLicense) await submitDocument(operationLicense.file, { OperationLicense: null });
+
+      const principal = await insurance_backend.whoami();
+      await insurance_backend.processUnderwriting(principal);
+      
+      const result = await insurance_backend.getUnderwritingResult();
+      if ('ok' in result) {
+        setUnderwritingResult(result.ok);
+      } else {
+        console.error("Error getting underwriting result:", result.err);
+        setError(`Failed to get underwriting result: ${result.err}`);
+      }
     } catch (error) {
       console.error("Error processing quotation:", error);
+      setError("Failed to process quotation. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
+
+  const handleFileUpload = (event, setFile, docType) => {
+    const file = event.target.files[0];
+    setFile({ file, docType });
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const principal = await insurance_backend.whoami();
+        console.log("Connected to backend. Principal:", principal);
+        await createAccountIfNeeded();
+        await fetchDocuments();
+      } catch (error) {
+        console.error("Error connecting to backend:", error);
+        setError("Failed to connect to the backend. Please check the console for more details.");
+      }
+    };
+    init();
+  }, []);
+
+  console.log("Insurance backend canister ID:", insurance_backend.canisterId);
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
       <Navbar onLogout={onLogout} />
       {isLoading && <Preloader />}
       <main className="flex-grow container mx-auto px-4 py-8">
+      {error && (
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <motion.div
             initial={{ opacity: 0, y: 50 }}
@@ -51,7 +148,7 @@ const Dashboard = ({ onLogout }) => {
                 <label className="block text-sm font-medium text-gray-700">Financial Audit</label>
                 <input
                   type="file"
-                  onChange={(e) => handleFileUpload(e, setFinancialAudit)}
+                  onChange={(e) => handleFileUpload(e, setFinancialAudit, { FinancialAudit: null })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
@@ -59,13 +156,21 @@ const Dashboard = ({ onLogout }) => {
                 <label className="block text-sm font-medium text-gray-700">Filled Form</label>
                 <input
                   type="file"
-                  onChange={(e) => handleFileUpload(e, setFilledForm)}
+                  onChange={(e) => handleFileUpload(e, setFilledForm, { ScannedForm: null })}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700">Operation License</label>
+                <input
+                  type="file"
+                  onChange={(e) => handleFileUpload(e, setOperationLicense, { OperationLicense: null })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 />
               </div>
               <button
                 type="submit"
-                disabled={!financialAudit || !filledForm || isLoading}
+                disabled={!financialAudit && !filledForm && !operationLicense || isLoading}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 {isLoading ? 'Processing...' : 'Submit for Quotation'}
@@ -81,15 +186,35 @@ const Dashboard = ({ onLogout }) => {
             <h2 className="text-2xl font-semibold mb-4">Quotation Result</h2>
             {underwritingResult ? (
               <div>
-                <p><strong>Status:</strong> {underwritingResult.status}</p>
-                <p><strong>Quotation:</strong> ${underwritingResult.quotation}</p>
-                <p><strong>Comments:</strong> {underwritingResult.comments || 'N/A'}</p>
+                <p><strong>Status:</strong> {Object.keys(underwritingResult.status)[0]}</p>
+                <p><strong>Quotation:</strong> Ksh. {underwritingResult.quotation || 'N/A'}</p>
+                <p><strong>Reason:</strong> {underwritingResult.reason || 'N/A'}</p>
               </div>
             ) : (
               <p className="text-gray-500">No quotation result available. Please submit documents for processing.</p>
             )}
           </motion.div>
         </div>
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.4 }}
+          className="mt-8 bg-white shadow-lg rounded-lg p-6"
+        >
+          <h2 className="text-2xl font-semibold mb-4">Submitted Documents</h2>
+          {documents.length > 0 ? (
+            <ul className="divide-y divide-gray-200">
+              {documents.map((doc, index) => (
+                <li key={index} className="py-4">
+                  <p><strong>Document Type:</strong> {Object.keys(doc.docType)[0]}</p>
+                  <p><strong>Timestamp:</strong> {new Date(Number(doc.timestamp) / 1000000).toLocaleString()}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500">No documents submitted yet.</p>
+          )}
+        </motion.div>
       </main>
       <Footer />
     </div>

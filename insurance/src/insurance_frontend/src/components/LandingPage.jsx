@@ -31,8 +31,7 @@ const LandingPage = ({ onLogin }) => {
           className="bg-white bg-opacity-20 p-6 rounded-lg shadow-lg"
         >
           <FaShieldAlt className="text-4xl mb-4 mx-auto" />
-          <h2 className="text-2xl font-semibold mb-2">Secure</h2>
-          <p>Industry-leading security measures to protect your data</p>
+          <h2 className="text-2xl font-semibold mb-2 text-center">Secure</h2>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, y: 50 }}
@@ -41,8 +40,7 @@ const LandingPage = ({ onLogin }) => {
           className="bg-white bg-opacity-20 p-6 rounded-lg shadow-lg"
         >
           <FaChartLine className="text-4xl mb-4 mx-auto" />
-          <h2 className="text-2xl font-semibold mb-2">Efficient</h2>
-          <p>AI-powered analysis for faster and more accurate underwriting</p>
+          <h2 className="text-2xl font-semibold mb-2 text-center">Efficient</h2>
         </motion.div>
         <motion.div
           initial={{ opacity: 0, x: 50 }}
@@ -51,8 +49,7 @@ const LandingPage = ({ onLogin }) => {
           className="bg-white bg-opacity-20 p-6 rounded-lg shadow-lg"
         >
           <FaFileAlt className="text-4xl mb-4 mx-auto" />
-          <h2 className="text-2xl font-semibold mb-2">Comprehensive</h2>
-          <p>Support for various document types and complex risk assessment</p>
+          <h2 className="text-2xl font-semibold mb-2 text-center">Comprehensive</h2>
         </motion.div>
       </div>
     </div>
